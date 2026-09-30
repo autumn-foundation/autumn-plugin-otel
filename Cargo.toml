@@ -1,0 +1,63 @@
+[package]
+name = "autumn-plugin-otel"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Autumn plugin: OpenTelemetry traces, metrics and logs export over OTLP."
+license = "Apache-2.0"
+repository = "https://github.com/madmax983/autumn-plugin-otel"
+keywords = ["autumn", "opentelemetry", "otlp", "tracing", "plugin"]
+categories = ["web-programming", "development-tools::debugging"]
+exclude = [".github/", "docs/", "CLAUDE.md", "clippy.toml", "proptest-regressions/"]
+
+[features]
+# Both transports. Disable one to shrink the build.
+default = ["grpc", "http"]
+# OTLP over gRPC (tonic).
+grpc = ["opentelemetry-otlp/grpc-tonic"]
+# OTLP over HTTP protobuf (reqwest, async).
+http = [
+    "opentelemetry-otlp/http-proto",
+    "opentelemetry-otlp/reqwest-client",
+    "opentelemetry-otlp/reqwest-rustls",
+]
+# TLS trust roots for `https://` gRPC endpoints. HTTP uses rustls via reqwest.
+tls = ["opentelemetry-otlp/tls-ring", "opentelemetry-otlp/tls-roots"]
+
+[dependencies]
+# No default features: the host app selects the Autumn features.
+autumn-web = { version = ">=0.7, <0.8", default-features = false }
+axum = { version = "0.8", default-features = false }
+http = "1"
+opentelemetry = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+toml = "1.1"
+tracing = "0.1"
+tracing-opentelemetry = { version = "0.33", default-features = false, features = ["metrics"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "fmt", "env-filter", "json", "ansi"] }
+
+[dev-dependencies]
+proptest = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+module_name_repetitions = "allow"
+redundant_pub_crate = "allow"

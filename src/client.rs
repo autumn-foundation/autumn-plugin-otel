@@ -111,10 +111,6 @@ impl std::fmt::Debug for OtelTelemetry {
 impl axum::extract::FromRequestParts<AppState> for OtelTelemetry {
     type Rejection = AutumnError;
 
-    #[allow(
-        clippy::unused_async_trait_impl,
-        reason = "the trait requires `async fn`"
-    )]
     async fn from_request_parts(
         _parts: &mut http::request::Parts,
         state: &AppState,

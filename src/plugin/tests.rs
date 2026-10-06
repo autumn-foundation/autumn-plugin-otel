@@ -43,10 +43,16 @@ fn configure_records_each_change() {
     assert!(format!("{plugin:?}").contains("changes: 2"));
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 #[test]
 fn resolve_applies_configure_changes() {
     let plugin = OtelPlugin::new().configure(|c| {
         c.enabled = true;
+        c.protocol = if cfg!(feature = "grpc") {
+            OtelProtocol::Grpc
+        } else {
+            OtelProtocol::Http
+        };
         c.service_name = "resolved".into();
         c.sample_ratio = 0.25;
     });
@@ -145,6 +151,16 @@ fn resolve_format_matches_the_framework() {
 fn protocol_availability_matches_the_features() {
     assert_eq!(OtelProtocol::Grpc.is_available(), cfg!(feature = "grpc"));
     assert_eq!(OtelProtocol::Http.is_available(), cfg!(feature = "http"));
+}
+
+#[cfg(not(any(feature = "grpc", feature = "http")))]
+#[test]
+fn install_pipeline_without_a_transport_asks_for_a_feature() {
+    // It returns before it builds anything, so it installs no subscriber.
+    let Err(warning) = install_pipeline(&enabled_config(), &LogConfig::default(), None) else {
+        panic!("the pipeline must not install without a transport");
+    };
+    assert!(warning.contains("`grpc` or `http`"), "{warning}");
 }
 
 #[test]

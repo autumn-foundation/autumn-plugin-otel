@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Weekly, so the latest-deps job catches upstream breakage between pushes.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -16,25 +19,34 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # The pinned toolchain for fmt, clippy, tests and docs. New clippy lints land
+  # with each release, so bump this on purpose and fix what it finds.
+  RUST_TOOLCHAIN: 1.98.1
+  # Keep in step with `rust-version` in Cargo.toml.
+  MSRV: 1.88.0
 
 jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.94.1
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt
       - run: cargo fmt --all -- --check
 
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.94.1
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --locked --all-targets --all-features -- -D warnings
@@ -42,25 +54,47 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.94.1
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --locked --lib --no-default-features
       - run: cargo test --locked --all-targets --all-features
       - run: cargo test --locked --doc --all-features
       - run: cargo doc --locked --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
 
+  # Every combination of `grpc`, `http` and `tls`, including no transport.
+  # `default` is `grpc,http`, so the powerset skips it as a duplicate.
+  features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo hack clippy --feature-powerset --exclude-features default --locked --all-targets -- -D warnings
+      - run: cargo hack test --feature-powerset --exclude-features default --locked --all-targets
+
   msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.88.0
+          toolchain: ${{ env.MSRV }}
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked --all-targets --all-features
 
@@ -72,7 +106,9 @@ jobs:
       # New lints on stable must not fail this job.
       RUSTFLAGS: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo update --ignore-rust-version
       - run: cargo test --all-targets --all-features

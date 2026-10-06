@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use axum::extract::FromRequestParts as _;
+
 use super::*;
 use crate::config::OtelConfig;
 use crate::plugin::Shared;
@@ -64,4 +66,32 @@ fn meter_builds_on_the_global_provider() {
         .with_description("client test".to_owned())
         .build();
     counter.add(1, &[]);
+}
+
+fn request_parts() -> http::request::Parts {
+    http::Request::new(()).into_parts().0
+}
+
+#[tokio::test]
+async fn extractor_returns_the_installed_handle() {
+    let state = AppState::detached();
+    state.insert_extension(OtelTelemetry::new(shared()));
+    let telemetry = OtelTelemetry::from_request_parts(&mut request_parts(), &state)
+        .await
+        .unwrap();
+    assert_eq!(
+        telemetry
+            .config()
+            .map(|config| config.service_name.as_str()),
+        Some("autumn-app")
+    );
+}
+
+#[tokio::test]
+async fn extractor_rejects_when_the_plugin_is_not_installed() {
+    let state = AppState::detached();
+    let rejection = OtelTelemetry::from_request_parts(&mut request_parts(), &state)
+        .await
+        .unwrap_err();
+    assert_eq!(rejection.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 }

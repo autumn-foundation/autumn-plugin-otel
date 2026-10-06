@@ -23,6 +23,7 @@ use std::sync::{
     Arc, OnceLock,
     atomic::{AtomicU8, Ordering},
 };
+#[cfg(any(feature = "grpc", feature = "http"))]
 use std::time::SystemTime;
 
 use autumn_web::app::AppBuilder;
@@ -30,27 +31,39 @@ use autumn_web::config::{LogConfig, LogFormat, TelemetryConfig};
 use autumn_web::plugin::Plugin;
 use autumn_web::telemetry::{TelemetryGuard, TelemetryInitError, TelemetryProvider};
 use autumn_web::{AppState, AutumnError};
-use opentelemetry::{KeyValue, trace::TracerProvider as _};
-use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+// The exporter pipeline exists only with an OTLP transport. Without one, these
+// items would be dead code, so they are gated on the same features.
 // `WithTonicConfig` needs no import: the `with_grpc_tls` bound carries the trait,
 // which puts its methods in scope by itself.
+#[cfg(any(feature = "grpc", feature = "http", test))]
+use opentelemetry::KeyValue;
+#[cfg(any(feature = "grpc", feature = "http"))]
+use opentelemetry::trace::TracerProvider as _;
 #[cfg(any(feature = "grpc", feature = "http"))]
 use opentelemetry_otlp::WithExportConfig as _;
+#[cfg(any(feature = "grpc", feature = "http", test))]
+use opentelemetry_sdk::Resource;
+#[cfg(any(feature = "grpc", feature = "http"))]
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+#[cfg(any(feature = "grpc", feature = "http", test))]
+use opentelemetry_sdk::trace::Sampler;
 
 use crate::client::OtelTelemetry;
-use crate::config::{ConfigError, DEFAULT_SECTION, OtelConfig, OtelProtocol};
+#[cfg(any(feature = "grpc", feature = "http"))]
+use crate::config::OtelProtocol;
+use crate::config::{ConfigError, DEFAULT_SECTION, OtelConfig};
 use crate::health::OtelHealthCheck;
 
 /// The plugin name in Autumn diagnostics.
 pub const PLUGIN_NAME: &str = "autumn-plugin-otel";
 
 /// The instrumentation scope of every signal the plugin emits.
+#[cfg(any(feature = "grpc", feature = "http"))]
 const SCOPE: &str = "autumn-plugin-otel";
 
 /// The lifecycle of the shared state.
@@ -435,11 +448,13 @@ fn install_pipeline(
 }
 
 /// The parent-based sampler for the configured ratio.
+#[cfg(any(feature = "grpc", feature = "http", test))]
 pub(crate) fn build_sampler(ratio: f64) -> Sampler {
     Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(ratio)))
 }
 
 /// The resource attributes for the service.
+#[cfg(any(feature = "grpc", feature = "http", test))]
 pub(crate) fn build_resource(config: &OtelConfig) -> Resource {
     let mut attributes = vec![
         KeyValue::new("service.version", config.service_version.clone()),
@@ -604,35 +619,43 @@ fn build_log_exporter(config: &OtelConfig) -> Result<opentelemetry_otlp::LogExpo
 /// Attaches TLS roots to a tonic exporter builder for `https` endpoints.
 /// Without the `tls` feature the builder passes through unchanged; the
 /// configuration validator rejects `https` gRPC endpoints in that case.
-#[cfg(feature = "grpc")]
+#[cfg(all(feature = "grpc", feature = "tls"))]
 fn with_grpc_tls<B>(builder: B, endpoint: &str) -> B
 where
     B: opentelemetry_otlp::WithTonicConfig,
 {
-    #[cfg(feature = "tls")]
-    {
-        if crate::config::is_https_endpoint(endpoint) {
-            return builder.with_tls_config(
-                opentelemetry_otlp::tonic_types::transport::ClientTlsConfig::new()
-                    .with_enabled_roots(),
-            );
-        }
+    if crate::config::is_https_endpoint(endpoint) {
+        builder.with_tls_config(
+            opentelemetry_otlp::tonic_types::transport::ClientTlsConfig::new().with_enabled_roots(),
+        )
+    } else {
+        builder
     }
-    #[allow(clippy::let_and_return, reason = "the tls branch returns early")]
+}
+
+/// Without the `tls` feature the builder passes through unchanged.
+#[cfg(all(feature = "grpc", not(feature = "tls")))]
+const fn with_grpc_tls<B>(builder: B, _endpoint: &str) -> B
+where
+    B: opentelemetry_otlp::WithTonicConfig,
+{
     builder
 }
 
 /// A tracing layer that forwards events to the OpenTelemetry log pipeline.
+#[cfg(any(feature = "grpc", feature = "http"))]
 struct OtelLogBridge {
     logger: opentelemetry_sdk::logs::SdkLogger,
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 impl OtelLogBridge {
     const fn new(logger: opentelemetry_sdk::logs::SdkLogger) -> Self {
         Self { logger }
     }
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 impl<S> tracing_subscriber::Layer<S> for OtelLogBridge
 where
     S: tracing::Subscriber,

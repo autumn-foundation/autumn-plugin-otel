@@ -18,6 +18,13 @@ shared arena target dir. Do not run concurrent Cargo builds.
 1. `cargo fmt --all -- --check`
 2. `cargo clippy --locked --all-targets --all-features -- -D warnings`
 3. `cargo test --locked --all-targets --all-features`
+4. `cargo hack test --feature-powerset --exclude-features default --locked --all-targets`
+   (and the same with `clippy ... -- -D warnings`): every feature combination,
+   including no transport, must build warning-free and pass. CI runs it in the
+   `features` job.
+
+CI pins its toolchain in `RUST_TOOLCHAIN` in `.github/workflows/ci.yml`; run the
+gates with that toolchain (`cargo +<version> ...`) so new clippy lints match.
 
 ## Design notes
 
@@ -37,5 +44,6 @@ shared arena target dir. Do not run concurrent Cargo builds.
 - gRPC exporters need a Tokio runtime at build time (tonic); Autumn always
   boots on Tokio.
 - Tests use `src/<module>/tests.rs` and must not touch a collector or the
-  network. `allow-unwrap-in-tests` is on; production code never unwraps.
+  network. Tests that need a transport are gated on `grpc`/`http` and pick an
+  available protocol; never assume `--all-features`. `allow-unwrap-in-tests` is on; production code never unwraps.
 - The commit message convention is `feat: initial autumn-plugin-otel`.

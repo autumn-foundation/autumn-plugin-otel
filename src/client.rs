@@ -111,11 +111,14 @@ impl std::fmt::Debug for OtelTelemetry {
 impl axum::extract::FromRequestParts<AppState> for OtelTelemetry {
     type Rejection = AutumnError;
 
-    async fn from_request_parts(
+    // The lookup never awaits, so it returns a ready future instead of an `async fn`.
+    fn from_request_parts(
         _parts: &mut http::request::Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        Self::from_state(state).ok_or_else(|| OtelError::NotInstalled.into_autumn())
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        std::future::ready(
+            Self::from_state(state).ok_or_else(|| OtelError::NotInstalled.into_autumn()),
+        )
     }
 }
 

@@ -26,3 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health indicator is `HealthOnly` and reports exporter configuration; it never
   contacts the collector.
 - `tls` feature: TLS trust roots for `https://` gRPC endpoints.
+
+### Fixed
+
+- Builds with `--no-default-features`, or `grpc` without `tls`, no longer fail
+  with dead-code and unused-variable errors under `-D warnings`.
+- The test suite passes with every feature combination, not only
+  `--all-features`; plain `cargo test` failed on an `https` gRPC endpoint
+  without `tls`.
+- The `OtelTelemetry` extractor returns a ready future, which satisfies the
+  `unused_async_trait_impl` lint on new clippy releases without an `allow`
+  that older ones reject.
+
+### Changed
+
+- CI: Rust 1.98.1, `actions/checkout@v7` (Node 24), a `features` job that runs
+  clippy and tests over the feature powerset, and a weekly scheduled run for
+  the latest-deps job.

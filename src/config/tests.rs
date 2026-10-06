@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use autumn_web::config::Env;
+#[cfg(any(feature = "grpc", feature = "http"))]
 use proptest::prelude::*;
 
 use super::*;
@@ -30,10 +31,21 @@ impl Env for MapEnv {
     }
 }
 
-/// A valid enabled configuration.
+/// A transport this build includes: gRPC (the default) when it can, else HTTP.
+/// A build with neither transport rejects every enabled configuration.
+const fn available_protocol() -> OtelProtocol {
+    if cfg!(feature = "grpc") {
+        OtelProtocol::Grpc
+    } else {
+        OtelProtocol::Http
+    }
+}
+
+/// A configuration that is enabled and valid when the build has a transport.
 fn enabled_config() -> OtelConfig {
     OtelConfig {
         enabled: true,
+        protocol: available_protocol(),
         ..OtelConfig::default()
     }
 }
@@ -51,6 +63,18 @@ fn empty_environment_resolves_to_defaults() {
     assert_eq!(config, OtelConfig::default());
 }
 
+#[test]
+fn disabled_section_resolves_in_every_build() {
+    // A disabled plugin needs no transport, so the `protocol` key never fails it.
+    let env = MapEnv::default()
+        .with("AUTUMN_OTEL__ENABLED", "false")
+        .with("AUTUMN_OTEL__PROTOCOL", "http");
+    let config = OtelConfig::resolve_with_env("otel", &env).unwrap();
+    assert!(!config.enabled);
+    assert_eq!(config.protocol, OtelProtocol::Http);
+}
+
+#[cfg(feature = "http")]
 #[test]
 fn environment_overrides_set_each_key() {
     let env = MapEnv::default()
@@ -93,6 +117,7 @@ fn unknown_keys_are_errors() {
         .expect_err("unknown keys must fail");
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 #[test]
 fn profile_file_overrides_the_base_file() {
     // A scratch dir with `autumn.toml` and `autumn-dev.toml`, wired through
@@ -105,7 +130,10 @@ fn profile_file_overrides_the_base_file() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("autumn.toml"),
-        "[otel]\nenabled = true\nservice_name = \"base\"\nsample_ratio = 0.1\n",
+        format!(
+            "[otel]\nenabled = true\nservice_name = \"base\"\nsample_ratio = 0.1\nprotocol = \"{}\"\n",
+            available_protocol().feature()
+        ),
     )
     .unwrap();
     std::fs::write(
@@ -140,6 +168,7 @@ fn empty_service_name_is_not_valid() {
     assert!(config.validate().is_err());
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 #[test]
 fn endpoint_must_be_an_absolute_uri() {
     for endpoint in ["", "localhost:4317", "://missing-scheme", "not a uri"] {
@@ -147,17 +176,15 @@ fn endpoint_must_be_an_absolute_uri() {
         config.endpoint = endpoint.into();
         assert!(config.validate().is_err(), "{endpoint:?} must not validate");
     }
-    for endpoint in [
-        "http://localhost:4317",
-        "https://collector:4317",
-        "grpc://collector:4317",
-    ] {
+    // `https` depends on the transport and the `tls` feature: see the tests below.
+    for endpoint in ["http://localhost:4317", "grpc://collector:4317"] {
         let mut config = enabled_config();
         config.endpoint = endpoint.into();
         assert!(config.validate().is_ok(), "{endpoint:?} must validate");
     }
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 #[test]
 fn ratio_below_zero_or_above_one_is_not_valid() {
     for ratio in [-0.5, -0.1, 1.1, 2.0, f64::NAN, f64::INFINITY] {
@@ -201,6 +228,7 @@ fn enabled_signals_lists_each_on_signal() {
     assert_eq!(partial.enabled_signals(), vec!["traces", "logs"]);
 }
 
+#[cfg(feature = "grpc")]
 #[test]
 fn https_grpc_endpoint_needs_the_tls_feature() {
     let mut config = enabled_config();
@@ -213,6 +241,34 @@ fn https_grpc_endpoint_needs_the_tls_feature() {
     }
 }
 
+#[cfg(feature = "http")]
+#[test]
+fn https_http_endpoint_needs_no_tls_feature() {
+    let mut config = enabled_config();
+    config.protocol = OtelProtocol::Http;
+    config.endpoint = "https://collector:4318".into();
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn unavailable_protocol_names_the_feature() {
+    for protocol in [OtelProtocol::Grpc, OtelProtocol::Http] {
+        let mut config = enabled_config();
+        config.protocol = protocol;
+        let result = config.validate();
+        if protocol.is_available() {
+            assert!(result.is_ok(), "{protocol:?}: {result:?}");
+        } else {
+            let error = result.unwrap_err().to_string();
+            assert!(error.starts_with("otel.protocol "), "{error}");
+            assert!(
+                error.contains(&format!("--features {}", protocol.feature())),
+                "{error}"
+            );
+        }
+    }
+}
+
 #[test]
 fn is_https_endpoint_detects_the_scheme() {
     assert!(is_https_endpoint("https://collector:4317"));
@@ -221,6 +277,7 @@ fn is_https_endpoint_detects_the_scheme() {
     assert!(!is_https_endpoint("not a uri"));
 }
 
+#[cfg(any(feature = "grpc", feature = "http"))]
 proptest! {
     #[test]
     fn sample_ratio_validation_matches_the_range(ratio in proptest::num::f64::ANY) {

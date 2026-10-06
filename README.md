@@ -99,6 +99,10 @@ fn record(state: &AppState) {
 - `http` (default): OTLP over HTTP protobuf via reqwest.
 - `tls`: TLS trust roots for `https://` gRPC endpoints. HTTP uses rustls.
 
+Every combination builds, including `--no-default-features`. A build without
+`grpc` or `http` has no transport, so an enabled `[otel]` section fails
+validation at boot and names the feature to enable.
+
 ## Known issues
 
 - `TelemetryInitError` is `#[non_exhaustive]`, so the provider can not return a

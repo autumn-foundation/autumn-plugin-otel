@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Support `autumn-web` 0.9. The plugin now needs `autumn-web` 0.9.
+- Move to `opentelemetry`, `opentelemetry_sdk` and `opentelemetry-otlp` 0.33 and
+  `tracing-opentelemetry` 0.34, the versions that `autumn-web` 0.9 uses. An app
+  then has one copy of the global propagator and providers.
+
 ### Added
 
 - `OtelPlugin`: registers `[otel]` config, installs a tier-1

@@ -19,13 +19,15 @@ async fn work() -> &'static str {
 
 #[autumn_web::main]
 async fn main() {
-    autumn_web::app()
-        .plugin(OtelPlugin::new().configure(|c| {
-            c.enabled = true;
-            c.service_name = "instrumented-example".into();
-            c.sample_ratio = 1.0;
-        }))
-        .routes(routes![work])
-        .run()
-        .await;
+    Box::pin(
+        autumn_web::app()
+            .plugin(OtelPlugin::new().configure(|c| {
+                c.enabled = true;
+                c.service_name = "instrumented-example".into();
+                c.sample_ratio = 1.0;
+            }))
+            .routes(routes![work])
+            .run(),
+    )
+    .await;
 }

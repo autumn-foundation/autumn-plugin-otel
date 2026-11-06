@@ -64,3 +64,8 @@ pub use config::{ConfigError, DEFAULT_SECTION, OtelConfig, OtelProtocol};
 pub use error::{ErrorKind, OtelError, OtelResultExt};
 pub use metrics::{OtelMetrics, meter, meter_named};
 pub use plugin::{OtelPlugin, PLUGIN_NAME};
+
+/// Compiles the Rust snippets of the README as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;

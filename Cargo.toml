@@ -1,8 +1,8 @@
 [package]
 name = "autumn-plugin-otel"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.97"
 description = "Autumn plugin: OpenTelemetry traces, metrics and logs export over OTLP."
 license = "Apache-2.0"
 repository = "https://github.com/madmax983/autumn-plugin-otel"
@@ -26,7 +26,7 @@ tls = ["opentelemetry-otlp/tls-ring", "opentelemetry-otlp/tls-roots"]
 
 [dependencies]
 # No default features: the host app selects the Autumn features.
-autumn-web = { version = ">=0.9, <0.10", default-features = false }
+autumn-web = { version = ">=0.10, <0.11", default-features = false }
 axum = { version = "0.8", default-features = false }
 http = "1"
 opentelemetry = { version = "0.33", default-features = false, features = ["trace", "metrics", "logs"] }

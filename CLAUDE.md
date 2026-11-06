@@ -28,6 +28,8 @@ gates with that toolchain (`cargo +<version> ...`) so new clippy lints match.
 
 ## Design notes
 
+- README Rust snippets are doctests. Make them compile; use `no_run`, not `ignore`.
+  `tests/doc_snippets.rs` checks the TOML snippets and the version pins in the docs.
 - Autumn APIs are grounded in the docs MCP (`~/workspace/skills/autumn-mcp/`),
   never from training memory. The tier-1 hook is
   `AppBuilder::with_telemetry_provider`, with the exact trait signature

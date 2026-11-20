@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20
+
+### Changed
+
+- **Breaking:** Support `autumn-web` 0.11. The plugin now needs `autumn-web`
+  0.11. Apps on `autumn-web` 0.10 stay on 0.3.0.
+
 ## [0.3.0] - 2026-11-06
 
 ### Changed
